@@ -1,47 +1,60 @@
 #!/usr/bin/env python3
 """
-Upload CSV files to the Brim API.
+Brim Setup - Project setup, user management, and data upload via the Brim API.
 
-This script uploads clinical notes or structured data CSV files to the Brim API,
-with optional support for creating projects, triggering generation, and fetching results.
+This script helps with setting up Brim projects, inviting users, and optionally
+uploading clinical notes or structured data CSV files with support for triggering
+generation and fetching results.
 
 USAGE
 -----
-    python scripts/upload_file_via_api.py <filepath> [options]
+    python scripts/brim_utils.py [options]
 
 EXAMPLES
 --------
+    # Create a project and invite users (no upload)
+    python scripts/brim_utils.py \\
+        --create-project "My Project" \\
+        --users-to-add "user1@example.com,user2@example.com"
+
+    # Create a project, invite users with upload permission
+    python scripts/brim_utils.py \\
+        --create-project "My Project" \\
+        --users-to-add "user1@example.com,user2@example.com" \\
+        --can-upload-permission
+
     # Upload notes CSV to existing project
-    python scripts/upload_file_via_api.py notes.csv --project-id 123
+    python scripts/brim_utils.py --csv-file notes.csv --project-id 123
 
     # Upload to existing project, run generation, and fetch results
-    python scripts/upload_file_via_api.py notes.csv \\
+    python scripts/brim_utils.py --csv-file notes.csv \\
         --project-id 123 \\
         --generate-after-upload \\
         --fetch-results \\
         --output-file results.csv
 
     # Upload structured data CSV to existing project
-    python scripts/upload_file_via_api.py structured.csv --structured-data --project-id 123
+    python scripts/brim_utils.py --csv-file structured.csv --structured-data --project-id 123
 
     # Create a new project and upload notes to it
-    python scripts/upload_file_via_api.py notes.csv --create-project "My New Project"
+    python scripts/brim_utils.py --csv-file notes.csv --create-project "My New Project"
 
     # Create project or use existing if name matches, then upload
-    python scripts/upload_file_via_api.py notes.csv \\
+    python scripts/brim_utils.py --csv-file notes.csv \\
         --create-project "My Project" \\
         --continue-if-project-exists
 
-    # Full workflow with new project: create, upload, generate, fetch results
-    python scripts/upload_file_via_api.py notes.csv \\
+    # Full workflow: create project, invite users, upload, generate, fetch results
+    python scripts/brim_utils.py --csv-file notes.csv \\
         --create-project "My Project" \\
         --continue-if-project-exists \\
+        --users-to-add "user1@example.com" \\
         --generate-after-upload \\
         --fetch-results \\
         --output-file results.csv
 
     # Custom polling intervals (5s initial, 10min max)
-    python scripts/upload_file_via_api.py notes.csv \\
+    python scripts/brim_utils.py --csv-file notes.csv \\
         --project-id 123 \\
         --generate-after-upload \\
         --fetch-results \\
@@ -51,7 +64,7 @@ EXAMPLES
 
 ARGUMENTS
 ---------
-    filepath                    Path to the CSV file to upload (required)
+    --csv-file PATH             Path to the CSV file to upload (optional)
 
     --api-token STR             API token for Bearer authentication (required)
                                 Can also be set via API_TOKEN env var
@@ -62,7 +75,7 @@ ARGUMENTS
 
 PROJECT SELECTION (one required)
 --------------------------------
-    --project-id INT            Project ID to upload to
+    --project-id INT            Project ID to use
                                 Can also be set via PROJECT_ID env var
 
     --create-project NAME       Create a new project with the given name
@@ -74,15 +87,21 @@ PROJECT SELECTION (one required)
                                 the existing project instead of failing if a
                                 project with the same name already exists
 
-UPLOAD TYPE (mutually exclusive)
---------------------------------
-    --notes                     Upload as notes CSV (default behavior)
+INVITE USERS
+------------
+    --users-to-add EMAILS       Comma-separated list of email addresses to invite
+    --can-upload-permission     Grant upload permission to invited users
+
+UPLOAD OPTIONS
+--------------
+    --notes                     Upload as notes CSV (default when --csv-file provided)
     --structured-data           Upload as structured data CSV
                                 Cannot be used with --generate-after-upload
 
 GENERATION & RESULTS
 --------------------
     --generate-after-upload     Start LLM generation after upload completes
+                                Requires --csv-file
 
     --fetch-results             Poll for generation completion and fetch results
                                 Requires: --generate-after-upload and --output-file
@@ -491,12 +510,72 @@ def fetch_results(
         return False
 
 
+def invite_user(
+    email: str,
+    project_id: int,
+    api_token: str,
+    api_url: str,
+    can_upload_permission: bool = False,
+):
+    """
+    Invite a user to a project via the API.
+
+    Args:
+        email (str): Email address of the user to invite
+        project_id (int): Project ID to invite the user to
+        api_token (str): API token for authentication
+        api_url (str): Base URL of the API
+        first_name (str): First name (required for new users)
+        last_name (str): Last name (required for new users)
+        can_upload_permission (bool): Grant upload permission to the user
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "email": email,
+        "project_id": project_id,
+        "can_upload_permission": can_upload_permission,
+    }
+
+    endpoint = f"{api_url.rstrip('/')}/api/v1/users/invite/"
+
+    try:
+        response = requests.post(endpoint, headers=headers, json=payload)
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Success: {result.get('message', f'User {email} invited')}")
+            return True
+        else:
+            try:
+                error_data = response.json()
+                error_msg = error_data.get("detail", response.text)
+            except ValueError:
+                error_msg = response.text
+            print(f"Error inviting {email}: {response.status_code} - {error_msg}")
+            return False
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: Failed to connect to server: {e}")
+        return False
+
+
 def create_parser():
-    """Create and return the argument parser for the upload script."""
+    """Create and return the argument parser for the brim setup script."""
     parser = argparse.ArgumentParser(
-        description="Upload a CSV file to the API (notes or structured data)"
+        description="Set up Brim projects, invite users, and upload data via the API"
     )
-    parser.add_argument("filepath", type=str, help="Path to the CSV file to upload")
+    parser.add_argument(
+        "--csv-file",
+        type=str,
+        help="Path to the CSV file to upload",
+        default=None,
+    )
     parser.add_argument(
         "--project-id",
         type=int,
@@ -569,6 +648,18 @@ def create_parser():
         help="Maximum polling interval in seconds (default: 300)",
         default=300,
     )
+    parser.add_argument(
+        "--users-to-add",
+        type=str,
+        help="Comma-separated list of email addresses to invite to the project",
+        default=None,
+    )
+    parser.add_argument(
+        "--can-upload-permission",
+        action="store_true",
+        help="Grant upload permission to the users",
+        default=False,
+    )
 
     return parser
 
@@ -604,6 +695,18 @@ def main():
         sys.exit(1)
 
     # Validate argument combinations
+    if args.structured_data and not args.csv_file:
+        print("Error: --structured-data requires --csv-file")
+        sys.exit(1)
+
+    if args.notes and not args.csv_file:
+        print("Error: --notes requires --csv-file")
+        sys.exit(1)
+
+    if args.generate_after_upload and not args.csv_file:
+        print("Error: --generate-after-upload requires --csv-file")
+        sys.exit(1)
+
     if args.fetch_results and not args.generate_after_upload:
         print("Error: --fetch-results requires --generate-after-upload")
         sys.exit(1)
@@ -616,8 +719,10 @@ def main():
         print("Error: --structured-data cannot be used with --generate-after-upload")
         sys.exit(1)
 
-    # Normalize filepath
-    filepath = str(Path(args.filepath).expanduser().resolve())
+    # Normalize csv_file path if provided
+    csv_file = None
+    if args.csv_file:
+        csv_file = str(Path(args.csv_file).expanduser().resolve())
 
     # Determine project_id (either from args or by creating a new project)
     project_id = args.project_id
@@ -636,29 +741,44 @@ def main():
             )
             sys.exit(2)
 
-    # Perform upload based on type
-    if args.structured_data:
-        result = upload_structured_data(
-            filepath,
-            project_id,
-            args.api_token,
-            args.url,
-        )
-    else:
-        # Default to notes upload (--notes flag or no flag)
-        result = upload_csv(
-            filepath,
-            project_id,
-            args.api_token,
-            args.url,
-            args.generate_after_upload,
-        )
+    # Invite users if indicated
+    if args.users_to_add:
+        email_addresses = [email.strip() for email in args.users_to_add.split(",")]
+        failed_invites = []
+        print(f"Inviting {len(email_addresses)} users to project {project_id}")
+        for email in email_addresses:
+            if not invite_user(
+                email, project_id, args.api_token, args.url, args.can_upload_permission
+            ):
+                failed_invites.append(email)
+        if failed_invites:
+            print(f"Warning: Failed to invite {len(failed_invites)} user(s)")
 
-    if not result:
-        sys.exit(1)
+    # Perform upload if csv_file provided
+    result = None
+    if csv_file:
+        if args.structured_data:
+            result = upload_structured_data(
+                csv_file,
+                project_id,
+                args.api_token,
+                args.url,
+            )
+        else:
+            # Default to notes upload (--notes flag or no flag)
+            result = upload_csv(
+                csv_file,
+                project_id,
+                args.api_token,
+                args.url,
+                args.generate_after_upload,
+            )
+
+        if not result:
+            sys.exit(1)
 
     # Handle fetch-results flow
-    if args.fetch_results:
+    if args.fetch_results and result:
         generation_task_id = result.get("generation_task_id")
         if not generation_task_id:
             print("Error: No generation task ID returned")
