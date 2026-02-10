@@ -53,9 +53,9 @@ Run `az login` before using Azure Blob Storage for local development.
 
 ---
 
-### upload_file_via_api.py
+### brim_utils.py
 
-Uploads clinical notes or structured data CSV files to the Brim API, with optional support for creating projects, triggering generation, and fetching results.
+Project setup, user management, and data upload via the Brim API. Supports creating projects, inviting users, and optionally uploading clinical notes or structured data CSV files with generation and result fetching.
 
 **Requirements:**
 ```bash
@@ -64,11 +64,24 @@ pip install requests
 
 **Usage:**
 ```bash
+# Create a project and invite users (no upload)
+python brim_utils.py \
+    --create-project "My Project" \
+    --users-to-add "user1@example.com,user2@example.com" \
+    --api-token YOUR_TOKEN
+
+# Create a project and invite users with upload permission
+python brim_utils.py \
+    --create-project "My Project" \
+    --users-to-add "user1@example.com,user2@example.com" \
+    --can-upload-permission \
+    --api-token YOUR_TOKEN
+
 # Upload notes CSV to existing project
-python upload_file_via_api.py notes.csv --project-id 123 --api-token YOUR_TOKEN
+python brim_utils.py --csv-file notes.csv --project-id 123 --api-token YOUR_TOKEN
 
 # Upload to existing project, run generation, and fetch results
-python upload_file_via_api.py notes.csv \
+python brim_utils.py --csv-file notes.csv \
     --project-id 123 \
     --api-token YOUR_TOKEN \
     --generate-after-upload \
@@ -76,15 +89,16 @@ python upload_file_via_api.py notes.csv \
     --output-file results.csv
 
 # Upload structured data CSV to existing project
-python upload_file_via_api.py structured.csv --structured-data --project-id 123 --api-token YOUR_TOKEN
+python brim_utils.py --csv-file structured.csv --structured-data --project-id 123 --api-token YOUR_TOKEN
 
 # Create a new project and upload notes to it
-python upload_file_via_api.py notes.csv --create-project "My New Project" --api-token YOUR_TOKEN
+python brim_utils.py --csv-file notes.csv --create-project "My New Project" --api-token YOUR_TOKEN
 
-# Full workflow: create project, upload, generate, fetch results
-python upload_file_via_api.py notes.csv \
+# Full workflow: create project, invite users, upload, generate, fetch results
+python brim_utils.py --csv-file notes.csv \
     --create-project "My Project" \
     --continue-if-project-exists \
+    --users-to-add "user1@example.com" \
     --api-token YOUR_TOKEN \
     --generate-after-upload \
     --fetch-results \
@@ -95,16 +109,18 @@ python upload_file_via_api.py notes.csv \
 
 | Argument | Description |
 |----------|-------------|
-| `filepath` | Path to the CSV file to upload (required) |
+| `--csv-file PATH` | Path to the CSV file to upload (optional) |
 | `--api-token` | API token for Bearer authentication (required, or set `API_TOKEN` env var) |
 | `--url` | Base URL of the API (default: `http://localhost:8000`, or set `API_URL` env var) |
-| `--project-id` | Project ID to upload to (or set `PROJECT_ID` env var) |
+| `--project-id` | Project ID to use (or set `PROJECT_ID` env var) |
 | `--create-project NAME` | Create a new project with the given name |
 | `--continue-if-project-exists` | Continue with existing project if name matches |
-| `--notes` | Upload as notes CSV (default) |
+| `--users-to-add EMAILS` | Comma-separated list of email addresses to invite to the project |
+| `--can-upload-permission` | Grant upload permission to invited users |
+| `--notes` | Upload as notes CSV (default when `--csv-file` is provided) |
 | `--structured-data` | Upload as structured data CSV |
-| `--generate-after-upload` | Start LLM generation after upload completes |
-| `--fetch-results` | Poll for completion and fetch results |
+| `--generate-after-upload` | Start LLM generation after upload completes (requires `--csv-file`) |
+| `--fetch-results` | Poll for completion and fetch results (requires `--generate-after-upload` and `--output-file`) |
 | `--output-file PATH` | Path to save results CSV |
 | `--poll-interval` | Initial polling interval in seconds (default: 2) |
 | `--max-poll-interval` | Maximum polling interval in seconds (default: 300) |
