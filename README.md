@@ -118,3 +118,53 @@ python upload_file_via_api.py notes.csv \
 - `0` - Success
 - `1` - Error (invalid arguments, upload failed, generation failed)
 - `2` - Project already exists (when using `--create-project` without `--continue-if-project-exists`)
+
+---
+
+### pg_dump_and_copy.sh
+
+Dumps a PostgreSQL database running inside a Docker container and copies the backup to the host. Old backups are automatically pruned based on a configurable retention period.
+
+**Usage:**
+```bash
+./pg_dump_and_copy.sh [CONTAINER_NAME] [DB_NAME] [DB_USER] [RETENTION_DAYS]
+```
+
+**Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `CONTAINER_NAME` | `brim-db` | Name of the Docker container running PostgreSQL |
+| `DB_NAME` | `summit_db` | Name of the database to dump |
+| `DB_USER` | `summit-db-user` | PostgreSQL user for the dump |
+| `RETENTION_DAYS` | `14` | Number of days to retain old backups |
+
+**Environment Variables:**
+- `BACKUP_DIR` - Directory to store dump files (default: `pg_dumps`)
+
+**Set a Crontab:**
+
+The script's defaults are set to run the backup at midnight (system time) each day and purge backups in the `pg_dumps` directory older than 14 days. You may need to use the absolute path for the script in the cron table. If so, ensure the script is executable (`chmod +x /absolute/path/to/pg_dump_and_copy.sh`).
+
+1. Edit the cron table with `crontab -e`.
+2. Add line: `0 0 * * * /absolute/path/to/pg_dump_and_copy.sh >> /path/to/logs.txt 2>&1`
+
+---
+
+### pg_restore_from_dump.sh
+
+Restores a pg_dump file into a Docker container, overwriting the existing database. The existing database is dropped and recreated before restoring.
+
+**Usage:**
+```bash
+./pg_restore_from_dump.sh <DUMP_FILE> [CONTAINER_NAME] [DB_NAME] [DB_USER]
+```
+
+**Arguments:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `DUMP_FILE` | *(required)* | Path to the `.dump` file to restore |
+| `CONTAINER_NAME` | `brim-db` | Name of the Docker container running PostgreSQL |
+| `DB_NAME` | `summit_db` | Name of the database to overwrite |
+| `DB_USER` | `summit-db-user` | PostgreSQL user for the restore |
