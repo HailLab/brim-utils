@@ -160,7 +160,9 @@ class TaskStatus:
     STOPPED = 4
 
 
-def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload, verify_ssl=True):
+def upload_csv(
+    filepath, project_id, api_token, api_url, generate_after_upload, verify_ssl=True
+):
     """
     Upload a notes CSV file to the API endpoint.
 
@@ -191,7 +193,9 @@ def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload, 
         }
 
         endpoint = f"{api_url.rstrip('/')}/api/v1/upload/csv/"
-        response = requests.post(endpoint, headers=headers, data=data, files=files, verify=verify_ssl)
+        response = requests.post(
+            endpoint, headers=headers, data=data, files=files, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -245,7 +249,9 @@ def upload_structured_data(filepath, project_id, api_token, api_url, verify_ssl=
         }
 
         endpoint = f"{api_url.rstrip('/')}/api/v1/upload/structured-data/"
-        response = requests.post(endpoint, headers=headers, data=data, files=files, verify=verify_ssl)
+        response = requests.post(
+            endpoint, headers=headers, data=data, files=files, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -294,7 +300,9 @@ def create_project(project_name, api_token, api_url, verify_ssl=True):
 
         payload = {"name": project_name}
         endpoint = f"{api_url.rstrip('/')}/api/v1/projects/"
-        response = requests.post(endpoint, headers=headers, json=payload, verify=verify_ssl)
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
 
         if response.status_code == 201:
             result = response.json()
@@ -362,7 +370,9 @@ def poll_task_status(
 
     while True:
         try:
-            response = requests.post(endpoint, headers=headers, json=payload, verify=verify_ssl)
+            response = requests.post(
+                endpoint, headers=headers, json=payload, verify=verify_ssl
+            )
 
             if response.status_code == 200:
                 result = response.json()
@@ -478,7 +488,9 @@ def fetch_results(
 
     try:
         payload = {"project_id": project_id, "task_id": task_id, "get_csv": True}
-        response = requests.post(endpoint, headers=headers, json=payload, verify=verify_ssl)
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
         csv_content, export_task_id, error = _parse_results_response(response)
 
         if csv_content:
@@ -507,7 +519,9 @@ def fetch_results(
 
         while True:
             time.sleep(interval)
-            response = requests.post(endpoint, headers=headers, json=poll_payload, verify=verify_ssl)
+            response = requests.post(
+                endpoint, headers=headers, json=poll_payload, verify=verify_ssl
+            )
             csv_content, _, error = _parse_results_response(response)
 
             if csv_content:
@@ -565,7 +579,9 @@ def invite_user(
     endpoint = f"{api_url.rstrip('/')}/api/v1/users/invite/"
 
     try:
-        response = requests.post(endpoint, headers=headers, json=payload, verify=verify_ssl)
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -781,7 +797,11 @@ def main():
         print(f"Inviting {len(email_addresses)} users to project {project_id}")
         for email in email_addresses:
             if not invite_user(
-                email, project_id, args.api_token, args.url, args.can_upload_permission,
+                email,
+                project_id,
+                args.api_token,
+                args.url,
+                args.can_upload_permission,
                 verify_ssl=verify_ssl,
             ):
                 failed_invites.append(email)
