@@ -8,6 +8,7 @@ from unittest import mock
 import pandas as pd
 
 from convert_omop_to_brim import (
+    _normalize_id,
     build_enrichment_header,
     build_person_lookup,
     build_provider_lookup,
@@ -31,6 +32,7 @@ from brim_utils import (
 
 # Path to sample files
 SAMPLE_FILES_DIR = Path(__file__).parent / "sample_files"
+SAMPLE_FILES_STRING_IDS_DIR = Path(__file__).parent / "sample_files_string_ids"
 
 
 class TestArgumentParsing(unittest.TestCase):
@@ -1153,9 +1155,9 @@ class TestBuildLookups(unittest.TestCase):
         lookup = build_provider_lookup(provider_df)
 
         self.assertEqual(len(lookup), 6)
-        self.assertIn(10, lookup)
-        self.assertEqual(lookup[10]["provider_name"], "Dr. Sarah Smith")
-        self.assertEqual(lookup[10]["specialty_source_value"], "Cardiology")
+        self.assertIn("10", lookup)
+        self.assertEqual(lookup["10"]["provider_name"], "Dr. Sarah Smith")
+        self.assertEqual(lookup["10"]["specialty_source_value"], "Cardiology")
 
     def test_build_person_lookup(self):
         """Test building person lookup from CSV."""
@@ -1163,10 +1165,10 @@ class TestBuildLookups(unittest.TestCase):
         lookup = build_person_lookup(person_df)
 
         self.assertEqual(len(lookup), 7)
-        self.assertIn(100, lookup)
-        self.assertEqual(lookup[100]["year_of_birth"], 1965)
-        self.assertEqual(lookup[100]["gender_source_value"], "Male")
-        self.assertEqual(lookup[100]["race_source_value"], "White")
+        self.assertIn("100", lookup)
+        self.assertEqual(lookup["100"]["year_of_birth"], 1965)
+        self.assertEqual(lookup["100"]["gender_source_value"], "Male")
+        self.assertEqual(lookup["100"]["race_source_value"], "White")
 
     def test_build_visit_lookup(self):
         """Test building visit lookup from CSV."""
@@ -1174,10 +1176,10 @@ class TestBuildLookups(unittest.TestCase):
         lookup = build_visit_lookup(visit_df)
 
         self.assertEqual(len(lookup), 7)
-        self.assertIn(1000, lookup)
-        self.assertEqual(lookup[1000]["visit_start_date"], "2023-01-15")
-        self.assertEqual(lookup[1000]["visit_end_date"], "2023-01-18")
-        self.assertEqual(lookup[1000]["visit_source_value"], "Inpatient")
+        self.assertIn("1000", lookup)
+        self.assertEqual(lookup["1000"]["visit_start_date"], "2023-01-15")
+        self.assertEqual(lookup["1000"]["visit_end_date"], "2023-01-18")
+        self.assertEqual(lookup["1000"]["visit_source_value"], "Inpatient")
 
     def test_build_lookup_with_none(self):
         """Test building lookup with None dataframe."""
@@ -1499,6 +1501,246 @@ class TestEdgeCases(unittest.TestCase):
                 pd.isna(output_df.iloc[0]["NOTE_TEXT"])
                 or output_df.iloc[0]["NOTE_TEXT"] == ""
             )
+
+
+class TestNormalizeId(unittest.TestCase):
+    """Tests for _normalize_id helper."""
+
+    def test_int(self):
+        self.assertEqual(_normalize_id(10), "10")
+
+    def test_float_whole(self):
+        self.assertEqual(_normalize_id(10.0), "10")
+
+    def test_string_numeric(self):
+        self.assertEqual(_normalize_id("10"), "10")
+
+    def test_string_alpha(self):
+        self.assertEqual(_normalize_id("PROV-X"), "PROV-X")
+
+    def test_string_alphanumeric(self):
+        self.assertEqual(_normalize_id("PAT-123"), "PAT-123")
+
+
+class TestBuildLookupsStringIds(unittest.TestCase):
+    """Tests for building lookup dictionaries with string IDs."""
+
+    def test_build_provider_lookup_string_ids(self):
+        """Test building provider lookup from CSV with string IDs."""
+        provider_df = load_csv_if_exists(SAMPLE_FILES_STRING_IDS_DIR, "provider.csv")
+        lookup = build_provider_lookup(provider_df)
+
+        self.assertEqual(len(lookup), 2)
+        self.assertIn("PROV-X", lookup)
+        self.assertEqual(lookup["PROV-X"]["provider_name"], "Dr. Sarah Smith")
+        self.assertEqual(lookup["PROV-X"]["specialty_source_value"], "Cardiology")
+        self.assertIn("PROV-Y", lookup)
+        self.assertEqual(lookup["PROV-Y"]["provider_name"], "Dr. John Johnson")
+
+    def test_build_person_lookup_string_ids(self):
+        """Test building person lookup from CSV with string IDs."""
+        person_df = load_csv_if_exists(SAMPLE_FILES_STRING_IDS_DIR, "person.csv")
+        lookup = build_person_lookup(person_df)
+
+        self.assertEqual(len(lookup), 3)
+        self.assertIn("PAT-A", lookup)
+        self.assertEqual(lookup["PAT-A"]["year_of_birth"], 1965)
+        self.assertEqual(lookup["PAT-A"]["gender_source_value"], "Male")
+        self.assertIn("PAT-B", lookup)
+        self.assertIn("PAT-C", lookup)
+
+    def test_build_visit_lookup_string_ids(self):
+        """Test building visit lookup from CSV with string IDs."""
+        visit_df = load_csv_if_exists(
+            SAMPLE_FILES_STRING_IDS_DIR, "visit_occurrence.csv"
+        )
+        lookup = build_visit_lookup(visit_df)
+
+        self.assertEqual(len(lookup), 4)
+        self.assertIn("VIS-100", lookup)
+        self.assertEqual(lookup["VIS-100"]["visit_start_date"], "2023-01-15")
+        self.assertEqual(lookup["VIS-100"]["visit_source_value"], "Inpatient")
+
+
+class TestBuildEnrichmentHeaderStringIds(unittest.TestCase):
+    """Tests for building enrichment header with string IDs."""
+
+    def setUp(self):
+        """Set up lookups for testing."""
+        provider_df = load_csv_if_exists(SAMPLE_FILES_STRING_IDS_DIR, "provider.csv")
+        person_df = load_csv_if_exists(SAMPLE_FILES_STRING_IDS_DIR, "person.csv")
+        visit_df = load_csv_if_exists(
+            SAMPLE_FILES_STRING_IDS_DIR, "visit_occurrence.csv"
+        )
+
+        self.provider_lookup = build_provider_lookup(provider_df)
+        self.person_lookup = build_person_lookup(person_df)
+        self.visit_lookup = build_visit_lookup(visit_df)
+
+    def test_full_enrichment_string_ids(self):
+        """Test enrichment header with string IDs."""
+        note_row = pd.Series(
+            {
+                "note_id": "N-001",
+                "person_id": "PAT-A",
+                "provider_id": "PROV-X",
+                "visit_occurrence_id": "VIS-100",
+            }
+        )
+
+        header = build_enrichment_header(
+            note_row,
+            self.provider_lookup,
+            self.person_lookup,
+            self.visit_lookup,
+        )
+
+        self.assertIn("Provider: Dr. Sarah Smith", header)
+        self.assertIn("Provider Specialty: Cardiology", header)
+        self.assertIn("Patient Year of Birth: 1965", header)
+        self.assertIn("Patient Gender: Male", header)
+        self.assertIn("Patient Race: White", header)
+        self.assertIn("Visit Start Date: 2023-01-15", header)
+        self.assertIn("Visit Type: Inpatient", header)
+
+    def test_enrichment_missing_provider_string_ids(self):
+        """Test enrichment header when provider is missing (string IDs)."""
+        note_row = pd.Series(
+            {
+                "note_id": "N-005",
+                "person_id": "PAT-A",
+                "provider_id": float("nan"),
+                "visit_occurrence_id": "VIS-103",
+            }
+        )
+
+        header = build_enrichment_header(
+            note_row,
+            self.provider_lookup,
+            self.person_lookup,
+            self.visit_lookup,
+        )
+
+        self.assertNotIn("Provider:", header)
+        self.assertIn("Patient Year of Birth: 1965", header)
+        self.assertIn("Visit Type: Outpatient", header)
+
+
+class TestConvertOmopToBrimStringIds(unittest.TestCase):
+    """Integration tests for conversion with string IDs."""
+
+    def test_conversion_with_enrichment_string_ids(self):
+        """Test full conversion with enrichment using string IDs."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as tmp_file:
+            output_path = Path(tmp_file.name)
+
+        try:
+            convert_omop_to_brim(SAMPLE_FILES_STRING_IDS_DIR, output_path, enrich=True)
+
+            output_df = pd.read_csv(output_path)
+
+            # Check headers
+            expected_columns = [
+                "NOTE_ID",
+                "PERSON_ID",
+                "NOTE_DATETIME",
+                "NOTE_TEXT",
+                "NOTE_TITLE",
+            ]
+            self.assertEqual(list(output_df.columns), expected_columns)
+
+            # Check row count
+            self.assertEqual(len(output_df), 5)
+
+            # Check first note has enrichment
+            first_note = output_df[output_df["NOTE_ID"] == "N-001"].iloc[0]
+            self.assertIn("Provider: Dr. Sarah Smith", first_note["NOTE_TEXT"])
+            self.assertIn("Patient Year of Birth: 1965", first_note["NOTE_TEXT"])
+            self.assertIn("Patient presents with chest pain", first_note["NOTE_TEXT"])
+            self.assertEqual(first_note["NOTE_TITLE"], "Progress Note")
+            self.assertEqual(first_note["PERSON_ID"], "PAT-A")
+
+            # Check note with missing provider
+            note_5 = output_df[output_df["NOTE_ID"] == "N-005"].iloc[0]
+            self.assertNotIn("Provider:", note_5["NOTE_TEXT"])
+            self.assertIn("Patient Year of Birth: 1965", note_5["NOTE_TEXT"])
+            self.assertIn("Visit Type: Outpatient", note_5["NOTE_TEXT"])
+
+            # Check note with missing visit
+            note_4 = output_df[output_df["NOTE_ID"] == "N-004"].iloc[0]
+            self.assertNotIn("Visit Start Date:", note_4["NOTE_TEXT"])
+            self.assertIn("Provider: Dr. Sarah Smith", note_4["NOTE_TEXT"])
+
+        finally:
+            if output_path.exists():
+                os.unlink(output_path)
+
+    def test_conversion_without_enrichment_string_ids(self):
+        """Test conversion without enrichment using string IDs."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as tmp_file:
+            output_path = Path(tmp_file.name)
+
+        try:
+            convert_omop_to_brim(SAMPLE_FILES_STRING_IDS_DIR, output_path, enrich=False)
+
+            output_df = pd.read_csv(output_path)
+
+            # String IDs should be preserved
+            self.assertIn("N-001", output_df["NOTE_ID"].values)
+            self.assertIn("PAT-A", output_df["PERSON_ID"].values)
+
+            # No enrichment
+            first_note = output_df[output_df["NOTE_ID"] == "N-001"].iloc[0]
+            self.assertNotIn("Provider:", first_note["NOTE_TEXT"])
+            self.assertIn("Patient presents with chest pain", first_note["NOTE_TEXT"])
+
+        finally:
+            if output_path.exists():
+                os.unlink(output_path)
+
+    def test_iso_datetime_with_string_ids(self):
+        """Test ISO datetime normalization with string IDs."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as tmp_file:
+            output_path = Path(tmp_file.name)
+
+        try:
+            convert_omop_to_brim(SAMPLE_FILES_STRING_IDS_DIR, output_path, enrich=False)
+
+            output_df = pd.read_csv(output_path)
+
+            # N-004 has ISO format: 2023-04-05T09:15:00
+            note_4 = output_df[output_df["NOTE_ID"] == "N-004"].iloc[0]
+            self.assertEqual(note_4["NOTE_DATETIME"], "2023-04-05 09:15:00")
+
+        finally:
+            if output_path.exists():
+                os.unlink(output_path)
+
+    def test_missing_datetime_fallback_string_ids(self):
+        """Test datetime fallback to note_date with string IDs."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".csv", delete=False
+        ) as tmp_file:
+            output_path = Path(tmp_file.name)
+
+        try:
+            convert_omop_to_brim(SAMPLE_FILES_STRING_IDS_DIR, output_path, enrich=False)
+
+            output_df = pd.read_csv(output_path)
+
+            # N-003 has no note_datetime, should fall back to note_date
+            note_3 = output_df[output_df["NOTE_ID"] == "N-003"].iloc[0]
+            self.assertEqual(note_3["NOTE_DATETIME"], "2023-03-10 00:00:00")
+
+        finally:
+            if output_path.exists():
+                os.unlink(output_path)
 
 
 if __name__ == "__main__":

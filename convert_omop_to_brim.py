@@ -266,6 +266,14 @@ def load_csv_if_exists(input_dir: Path, filename: str) -> pd.DataFrame | None:
         return None
 
 
+def _normalize_id(value) -> str:
+    """Normalize an ID value to a string key, stripping trailing .0 from floats."""
+    s = str(value)
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s
+
+
 def build_provider_lookup(provider_df: pd.DataFrame | None) -> dict:
     """Build a lookup dictionary for provider information."""
     if provider_df is None:
@@ -275,7 +283,7 @@ def build_provider_lookup(provider_df: pd.DataFrame | None) -> dict:
     for _, row in provider_df.iterrows():
         provider_id = row.get("provider_id")
         if pd.notna(provider_id):
-            lookup[int(provider_id)] = {
+            lookup[_normalize_id(provider_id)] = {
                 "provider_name": row.get("provider_name"),
                 "specialty_source_value": row.get("specialty_source_value"),
             }
@@ -291,7 +299,7 @@ def build_person_lookup(person_df: pd.DataFrame | None) -> dict:
     for _, row in person_df.iterrows():
         person_id = row.get("person_id")
         if pd.notna(person_id):
-            lookup[int(person_id)] = {
+            lookup[_normalize_id(person_id)] = {
                 "year_of_birth": row.get("year_of_birth"),
                 "gender_source_value": row.get("gender_source_value"),
                 "race_source_value": row.get("race_source_value"),
@@ -308,7 +316,7 @@ def build_visit_lookup(visit_df: pd.DataFrame | None) -> dict:
     for _, row in visit_df.iterrows():
         visit_id = row.get("visit_occurrence_id")
         if pd.notna(visit_id):
-            lookup[int(visit_id)] = {
+            lookup[_normalize_id(visit_id)] = {
                 "visit_start_date": row.get("visit_start_date"),
                 "visit_end_date": row.get("visit_end_date"),
                 "visit_source_value": row.get("visit_source_value"),
@@ -348,8 +356,8 @@ def build_enrichment_header(
 
     # Provider info
     provider_id = note_row.get("provider_id")
-    if pd.notna(provider_id) and int(provider_id) in provider_lookup:
-        provider_info = provider_lookup[int(provider_id)]
+    if pd.notna(provider_id) and _normalize_id(provider_id) in provider_lookup:
+        provider_info = provider_lookup[_normalize_id(provider_id)]
         if pd.notna(provider_info.get("provider_name")):
             lines.append(f"Provider: {provider_info['provider_name']}")
         if pd.notna(provider_info.get("specialty_source_value")):
@@ -359,8 +367,8 @@ def build_enrichment_header(
 
     # Person info
     person_id = note_row.get("person_id")
-    if pd.notna(person_id) and int(person_id) in person_lookup:
-        person_info = person_lookup[int(person_id)]
+    if pd.notna(person_id) and _normalize_id(person_id) in person_lookup:
+        person_info = person_lookup[_normalize_id(person_id)]
         if pd.notna(person_info.get("year_of_birth")):
             lines.append(f"Patient Year of Birth: {int(person_info['year_of_birth'])}")
         if pd.notna(person_info.get("gender_source_value")):
@@ -370,8 +378,8 @@ def build_enrichment_header(
 
     # Visit info
     visit_id = note_row.get("visit_occurrence_id")
-    if pd.notna(visit_id) and int(visit_id) in visit_lookup:
-        visit_info = visit_lookup[int(visit_id)]
+    if pd.notna(visit_id) and _normalize_id(visit_id) in visit_lookup:
+        visit_info = visit_lookup[_normalize_id(visit_id)]
         if pd.notna(visit_info.get("visit_start_date")):
             lines.append(f"Visit Start Date: {visit_info['visit_start_date']}")
         if pd.notna(visit_info.get("visit_end_date")):
