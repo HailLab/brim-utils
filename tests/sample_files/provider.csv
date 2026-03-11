@@ -1,0 +1,7 @@
+provider_id,provider_name,npi,dea,specialty_concept_id,care_site_id,year_of_birth,gender_concept_id,provider_source_value,specialty_source_value,specialty_source_concept_id,gender_source_value,gender_source_concept_id
+10,Dr. Sarah Smith,1234567890,AS1234567,38004446,1,1975,8532,SMITH_S,Cardiology,0,F,0
+11,Dr. John Johnson,2345678901,BJ2345678,38004489,1,1968,8507,JOHNSON_J,Internal Medicine,0,M,0
+12,Dr. Emily Williams,3456789012,CW3456789,38004514,2,1982,8532,WILLIAMS_E,Oncology,0,F,0
+13,Dr. Michael Brown,4567890123,DB4567890,38004447,2,1970,8507,BROWN_M,General Surgery,0,M,0
+14,Dr. Lisa Davis,5678901234,ED5678901,38004515,3,1985,8532,DAVIS_L,Pathology,0,F,0
+15,Dr. Robert Wilson,6789012345,FW6789012,38004448,3,1972,8507,WILSON_R,Emergency Medicine,0,M,0

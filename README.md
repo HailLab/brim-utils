@@ -124,6 +124,7 @@ python brim_utils.py --csv-file notes.csv \
 | `--output-file PATH` | Path to save results CSV |
 | `--poll-interval` | Initial polling interval in seconds (default: 2) |
 | `--max-poll-interval` | Maximum polling interval in seconds (default: 300) |
+| `--no-verify-ssl` | Disable SSL certificate verification |
 
 **Environment Variables:**
 - `API_TOKEN` - Default value for `--api-token`
