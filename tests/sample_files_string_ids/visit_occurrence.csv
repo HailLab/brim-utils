@@ -1,0 +1,5 @@
+visit_occurrence_id,person_id,visit_concept_id,visit_start_date,visit_start_datetime,visit_end_date,visit_end_datetime,visit_type_concept_id,provider_id,care_site_id,visit_source_value,visit_source_concept_id,admitted_from_concept_id,admitted_from_source_value,discharged_to_concept_id,discharged_to_source_value,preceding_visit_occurrence_id
+VIS-100,PAT-A,9201,2023-01-15,2023-01-15 08:00:00,2023-01-18,2023-01-18 14:00:00,44818518,PROV-X,1,Inpatient,0,0,,0,,
+VIS-101,PAT-B,9202,2023-02-20,2023-02-20 09:00:00,2023-02-20,2023-02-20 17:00:00,44818518,PROV-Y,1,Outpatient,0,0,,0,,
+VIS-102,PAT-C,9201,2023-03-10,2023-03-10 11:00:00,2023-03-12,2023-03-12 10:00:00,44818518,PROV-X,1,Inpatient,0,0,,0,,
+VIS-103,PAT-A,9202,2023-05-12,2023-05-12 14:00:00,2023-05-12,2023-05-12 18:00:00,44818518,PROV-X,1,Outpatient,0,0,,0,,
