@@ -1,0 +1,9 @@
+note_id,person_id,note_date,note_datetime,note_type_concept_id,note_class_concept_id,note_title,note_text,provider_id,visit_occurrence_id
+1,100,2023-01-15,2023-01-15 10:30:00,44814645,44803882,Progress Note,"Patient presents with chest pain. History of hypertension. Prescribed aspirin.",10,1000
+2,101,2023-02-20,2023-02-20 14:45:00,44814645,44803882,Discharge Summary,"Patient discharged in stable condition. Follow-up in 2 weeks.",11,1001
+3,102,2023-03-10,,44814645,44803882,,"Note with no title and no datetime, only date.",12,1002
+4,103,2023-04-05,2023-04-05T09:15:00,44814645,44803882,Consultation,"Patient referred for cardiology consultation. EKG shows normal sinus rhythm.",10,
+5,100,2023-05-12,2023-05-12 16:00:00,44814645,44803882,Follow-up Note,"Blood pressure controlled on current medication. Continue lisinopril 10mg daily.",,1003
+6,104,2023-06-01,2023-06-01 11:30:00,44814645,44803882,Operative Report,"Patient underwent appendectomy. Procedure uncomplicated. Estimated blood loss 50ml.",13,1004
+7,105,2023-07-18,2023-07-18 08:00:00,44814645,44803882,Lab Results,"Note with ""quoted text"" and special, characters: semicolons; and pipes|here.",14,1005
+8,106,2023-08-22,2023-08-22 13:20,44814645,44803882,Emergency Note,"Patient arrived via ambulance. Chief complaint: shortness of breath.",15,1006

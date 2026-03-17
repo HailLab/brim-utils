@@ -1,0 +1,8 @@
+person_id,gender_concept_id,year_of_birth,month_of_birth,day_of_birth,birth_datetime,race_concept_id,ethnicity_concept_id,location_id,provider_id,care_site_id,person_source_value,gender_source_value,gender_source_concept_id,race_source_value,race_source_concept_id,ethnicity_source_value,ethnicity_source_concept_id
+100,8507,1965,3,15,1965-03-15 00:00:00,8527,38003564,1,10,1,PAT100,Male,0,White,0,Not Hispanic,0
+101,8532,1980,7,22,1980-07-22 00:00:00,8516,38003564,2,11,1,PAT101,Female,0,Black,0,Not Hispanic,0
+102,8507,1955,11,8,1955-11-08 00:00:00,8515,38003563,3,12,2,PAT102,Male,0,Asian,0,Hispanic,0
+103,8532,1990,1,30,1990-01-30 00:00:00,8527,38003564,4,10,1,PAT103,Female,0,White,0,Not Hispanic,0
+104,8507,1972,5,12,1972-05-12 00:00:00,8516,38003564,5,13,2,PAT104,Male,0,Black,0,Not Hispanic,0
+105,8532,1988,9,3,1988-09-03 00:00:00,8527,38003564,6,14,3,PAT105,Female,0,White,0,Not Hispanic,0
+106,8507,1945,12,25,1945-12-25 00:00:00,8515,38003563,7,15,3,PAT106,Male,0,Asian,0,Hispanic,0

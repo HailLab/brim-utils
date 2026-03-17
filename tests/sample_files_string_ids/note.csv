@@ -1,0 +1,6 @@
+note_id,person_id,note_date,note_datetime,note_type_concept_id,note_class_concept_id,note_title,note_text,provider_id,visit_occurrence_id
+N-001,PAT-A,2023-01-15,2023-01-15 10:30:00,44814645,44803882,Progress Note,"Patient presents with chest pain. History of hypertension.",PROV-X,VIS-100
+N-002,PAT-B,2023-02-20,2023-02-20 14:45:00,44814645,44803882,Discharge Summary,"Patient discharged in stable condition. Follow-up in 2 weeks.",PROV-Y,VIS-101
+N-003,PAT-C,2023-03-10,,44814645,44803882,,"Lab results reviewed. All within normal limits.",PROV-X,VIS-102
+N-004,PAT-C,2023-04-05,2023-04-05T09:15:00,44814645,44803882,Consultation Note,"Referred for cardiology evaluation.",PROV-X,
+N-005,PAT-A,2023-05-12,2023-05-12 16:00:00,44814645,44803882,Follow-up Note,"Blood pressure well controlled on current regimen.",,VIS-103
