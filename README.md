@@ -78,10 +78,10 @@ python brim_utils.py \
     --api-token YOUR_TOKEN
 
 # Upload notes CSV to existing project
-python brim_utils.py --csv-file notes.csv --project-id 123 --api-token YOUR_TOKEN
+python brim_utils.py --filepath notes.csv --project-id 123 --api-token YOUR_TOKEN
 
 # Upload to existing project, run generation, and fetch results
-python brim_utils.py --csv-file notes.csv \
+python brim_utils.py --filepath notes.csv \
     --project-id 123 \
     --api-token YOUR_TOKEN \
     --generate-after-upload \
@@ -89,13 +89,13 @@ python brim_utils.py --csv-file notes.csv \
     --output-file results.csv
 
 # Upload structured data CSV to existing project
-python brim_utils.py --csv-file structured.csv --structured-data --project-id 123 --api-token YOUR_TOKEN
+python brim_utils.py --filepath structured.csv --structured-data --project-id 123 --api-token YOUR_TOKEN
 
 # Create a new project and upload notes to it
-python brim_utils.py --csv-file notes.csv --create-project "My New Project" --api-token YOUR_TOKEN
+python brim_utils.py --filepath notes.csv --create-project "My New Project" --api-token YOUR_TOKEN
 
 # Full workflow: create project, invite users, upload, generate, fetch results
-python brim_utils.py --csv-file notes.csv \
+python brim_utils.py --filepath notes.csv \
     --create-project "My Project" \
     --continue-if-project-exists \
     --users-to-add "user1@example.com" \
@@ -109,7 +109,7 @@ python brim_utils.py --csv-file notes.csv \
 
 | Argument | Description |
 |----------|-------------|
-| `--csv-file PATH` | Path to the CSV file to upload (optional) |
+| `--filepath PATH` | Path to the CSV file to upload (optional) |
 | `--api-token` | API token for Bearer authentication (required, or set `API_TOKEN` env var) |
 | `--url` | Base URL of the API (default: `http://localhost:8000`, or set `API_URL` env var) |
 | `--project-id` | Project ID to use (or set `PROJECT_ID` env var) |
@@ -117,9 +117,9 @@ python brim_utils.py --csv-file notes.csv \
 | `--continue-if-project-exists` | Continue with existing project if name matches |
 | `--users-to-add EMAILS` | Comma-separated list of email addresses to invite to the project |
 | `--can-upload-permission` | Grant upload permission to invited users |
-| `--notes` | Upload as notes CSV (default when `--csv-file` is provided) |
+| `--notes` | Upload as notes CSV (default when `--filepath` is provided) |
 | `--structured-data` | Upload as structured data CSV |
-| `--generate-after-upload` | Start LLM generation after upload completes (requires `--csv-file`) |
+| `--generate-after-upload` | Start LLM generation after upload completes (requires `--filepath`) |
 | `--fetch-results` | Poll for completion and fetch results (requires `--generate-after-upload` and `--output-file`) |
 | `--output-file PATH` | Path to save results CSV |
 | `--poll-interval` | Initial polling interval in seconds (default: 2) |
