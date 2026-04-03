@@ -42,7 +42,7 @@ class TestArgumentParsing(unittest.TestCase):
         """Default behavior should be notes upload when neither flag is set."""
         with mock.patch(
             "sys.argv",
-            ["brim_utils.py", "--csv-file", "test.csv", "--project-id", "123"],
+            ["brim_utils.py", "--filepath", "test.csv", "--project-id", "123"],
         ):
             parser = create_parser()
             args = parser.parse_args()
@@ -55,7 +55,7 @@ class TestArgumentParsing(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 "test.csv",
                 "--notes",
                 "--project-id",
@@ -73,7 +73,7 @@ class TestArgumentParsing(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 "test.csv",
                 "--structured-data",
                 "--project-id",
@@ -91,7 +91,7 @@ class TestArgumentParsing(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 "test.csv",
                 "--notes",
                 "--structured-data",
@@ -109,7 +109,7 @@ class TestArgumentParsing(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 "test.csv",
                 "--generate-after-upload",
                 "--fetch-results",
@@ -137,7 +137,7 @@ class TestValidationErrors(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--project-id",
                 "123",
@@ -167,7 +167,7 @@ class TestValidationErrors(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--project-id",
                 "123",
@@ -198,7 +198,7 @@ class TestValidationErrors(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--project-id",
                 "123",
@@ -490,7 +490,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--create-project",
                 "Existing Project",
@@ -524,7 +524,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--create-project",
                 "Existing Project",
@@ -552,7 +552,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--project-id",
                 "123",
@@ -582,7 +582,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--project-id",
                 "123",
@@ -613,7 +613,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             "sys.argv",
             [
                 "brim_utils.py",
-                "--csv-file",
+                "--filepath",
                 filepath,
                 "--api-token",
                 "test-token",
@@ -678,7 +678,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             self.assertEqual(mock_invite.call_count, 2)
 
     def test_generate_after_upload_requires_csv_file(self):
-        """--generate-after-upload without --csv-file should fail."""
+        """--generate-after-upload without --filepath should fail."""
         with mock.patch(
             "sys.argv",
             [
@@ -696,7 +696,7 @@ class TestCreateProjectValidation(unittest.TestCase):
                     main()
                 self.assertEqual(cm.exception.code, 1)
             self.assertIn(
-                "--generate-after-upload requires --csv-file",
+                "--generate-after-upload requires --filepath",
                 captured_output.getvalue(),
             )
 
