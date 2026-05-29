@@ -55,6 +55,17 @@ EXAMPLES
         --fetch-results \\
         --output-file results.csv
 
+    # Fetch existing project-wide results without uploading anything
+    python scripts/brim_utils.py --project-id 123 \\
+        --fetch-results \\
+        --output-file results.csv
+
+    # Fetch a detailed export instead of the default patient export
+    python scripts/brim_utils.py --project-id 123 \\
+        --fetch-results \\
+        --output-file results.csv \\
+        --export-type detailed
+
     # Custom polling intervals (5s initial, 10min max)
     python scripts/brim_utils.py --filepath notes.csv \\
         --project-id 123 \\
@@ -105,8 +116,14 @@ GENERATION & RESULTS
     --generate-after-upload     Start LLM generation after upload completes
                                 Requires --filepath (CSV or TSV)
 
-    --fetch-results             Poll for generation completion and fetch results
-                                Requires: --generate-after-upload and --output-file
+    --fetch-results             Fetch results and save CSV. Requires --output-file.
+                                With --generate-after-upload, polls the new
+                                generation task and fetches its subset export.
+                                Without --filepath, fetches the entire project's
+                                existing results.
+
+    --export-type TYPE          'patient' (default) or 'detailed'. Selects the
+                                shape of the CSV returned by --fetch-results.
 
     --output-file PATH          Path to save results (CSV format)
                                 Required when using --fetch-results
@@ -117,6 +134,12 @@ POLLING OPTIONS
                                 Uses exponential backoff up to max-poll-interval
 
     --max-poll-interval INT     Maximum polling interval in seconds (default: 300)
+
+SSL OPTIONS
+-----------
+    --no-verify-ssl             Disable SSL certificate verification. Use for
+                                staging or dev URLs with self-signed certs.
+                                Do not use against production.
 
 ENVIRONMENT VARIABLES
 ---------------------
@@ -131,6 +154,7 @@ EXIT CODES
     2                           Project already exists (when --create-project used without
                                 --continue-if-project-exists)
 """
+
 import argparse
 import os
 import sys
@@ -149,7 +173,9 @@ class TaskStatus:
     STOPPED = 4
 
 
-def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload):
+def upload_csv(
+    filepath, project_id, api_token, api_url, generate_after_upload, verify_ssl=True
+):
     """
     Upload a notes file (CSV or TSV) to the API endpoint.
 
@@ -159,6 +185,7 @@ def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload):
         api_token (str): API project token for authentication
         api_url (str): Base URL of the API
         generate_after_upload (bool): Start generation after upload.
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         dict: Response data if successful, None otherwise
@@ -179,7 +206,9 @@ def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload):
         }
 
         endpoint = f"{api_url.rstrip('/')}/api/v1/upload/csv/"
-        response = requests.post(endpoint, headers=headers, data=data, files=files)
+        response = requests.post(
+            endpoint, headers=headers, data=data, files=files, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -204,7 +233,7 @@ def upload_csv(filepath, project_id, api_token, api_url, generate_after_upload):
             files["csv_file"].close()
 
 
-def upload_structured_data(filepath, project_id, api_token, api_url):
+def upload_structured_data(filepath, project_id, api_token, api_url, verify_ssl=True):
     """
     Upload a structured data file (CSV or TSV) to the API endpoint.
 
@@ -213,6 +242,7 @@ def upload_structured_data(filepath, project_id, api_token, api_url):
         project_id (int): Project ID to upload to
         api_token (str): API project token for authentication
         api_url (str): Base URL of the API
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         dict: Response data if successful, None otherwise
@@ -232,7 +262,9 @@ def upload_structured_data(filepath, project_id, api_token, api_url):
         }
 
         endpoint = f"{api_url.rstrip('/')}/api/v1/upload/structured-data/"
-        response = requests.post(endpoint, headers=headers, data=data, files=files)
+        response = requests.post(
+            endpoint, headers=headers, data=data, files=files, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -258,7 +290,7 @@ def upload_structured_data(filepath, project_id, api_token, api_url):
             files["csv_file"].close()
 
 
-def create_project(project_name, api_token, api_url):
+def create_project(project_name, api_token, api_url, verify_ssl=True):
     """
     Create a new project via the API.
 
@@ -266,6 +298,7 @@ def create_project(project_name, api_token, api_url):
         project_name (str): Name for the new project
         api_token (str): API token for authentication
         api_url (str): Base URL of the API
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         tuple: (project_id, created) where:
@@ -280,7 +313,9 @@ def create_project(project_name, api_token, api_url):
 
         payload = {"name": project_name}
         endpoint = f"{api_url.rstrip('/')}/api/v1/projects/"
-        response = requests.post(endpoint, headers=headers, json=payload)
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
 
         if response.status_code == 201:
             result = response.json()
@@ -312,6 +347,7 @@ def poll_task_status(
     initial_interval=2,
     max_interval=300,
     max_retries=None,
+    verify_ssl=True,
 ):
     """
     Poll the task status endpoint until the task completes or fails.
@@ -324,6 +360,7 @@ def poll_task_status(
         initial_interval (int): Initial polling interval in seconds
         max_interval (int): Maximum polling interval in seconds
         max_retries (int): Maximum number of retries (None for unlimited)
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         int: Final task status (COMPLETE=2, ERROR=3, STOPPED=4) or None on error
@@ -346,7 +383,9 @@ def poll_task_status(
 
     while True:
         try:
-            response = requests.post(endpoint, headers=headers, json=payload)
+            response = requests.post(
+                endpoint, headers=headers, json=payload, verify=verify_ssl
+            )
 
             if response.status_code == 200:
                 result = response.json()
@@ -434,18 +473,25 @@ def fetch_results(
     output_file,
     initial_interval=2,
     max_interval=300,
+    export_type="patient",
+    verify_ssl=True,
 ):
     """
-    Fetch results for a completed task. Creates an export task and polls until complete.
+    Fetch results. Creates an export task (or returns a cached one) and polls
+    until the CSV is ready.
 
     Args:
-        task_id (str): Task ID (generation or upload task)
+        task_id (str | None): Generation or upload task ID to fetch a subset
+            for. Pass ``None`` for a project-wide export of all results.
         project_id (int): Project ID
         api_token (str): API project token for authentication
         api_url (str): Base URL of the API
         output_file (str): Path to save CSV results
         initial_interval (int): Initial polling interval in seconds
         max_interval (int): Maximum polling interval in seconds
+        export_type (str): "detailed" or "patient" — selects the API's
+            ``detailed_export`` / ``patient_export`` flag.
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         bool: True if successful, False otherwise
@@ -456,11 +502,21 @@ def fetch_results(
     }
     endpoint = f"{api_url.rstrip('/')}/api/v1/results/"
 
-    print(f"Fetching results for task {task_id}...")
+    scope = f"task {task_id}" if task_id else "the full project"
+    print(f"Fetching {export_type} results for {scope}...")
 
     try:
-        payload = {"project_id": project_id, "task_id": task_id, "get_csv": True}
-        response = requests.post(endpoint, headers=headers, json=payload)
+        payload = {
+            "project_id": project_id,
+            "get_csv": True,
+            "detailed_export": export_type == "detailed",
+            "patient_export": export_type == "patient",
+        }
+        if task_id:
+            payload["task_id"] = task_id
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
         csv_content, export_task_id, error = _parse_results_response(response)
 
         if csv_content:
@@ -489,7 +545,9 @@ def fetch_results(
 
         while True:
             time.sleep(interval)
-            response = requests.post(endpoint, headers=headers, json=poll_payload)
+            response = requests.post(
+                endpoint, headers=headers, json=poll_payload, verify=verify_ssl
+            )
             csv_content, _, error = _parse_results_response(response)
 
             if csv_content:
@@ -518,6 +576,7 @@ def invite_user(
     api_token: str,
     api_url: str,
     can_upload_permission: bool = False,
+    verify_ssl: bool = True,
 ):
     """
     Invite a user to a project via the API.
@@ -527,9 +586,8 @@ def invite_user(
         project_id (int): Project ID to invite the user to
         api_token (str): API token for authentication
         api_url (str): Base URL of the API
-        first_name (str): First name (required for new users)
-        last_name (str): Last name (required for new users)
         can_upload_permission (bool): Grant upload permission to the user
+        verify_ssl (bool): Whether to verify SSL certificates.
 
     Returns:
         bool: True if successful, False otherwise
@@ -547,7 +605,9 @@ def invite_user(
     endpoint = f"{api_url.rstrip('/')}/api/v1/users/invite/"
 
     try:
-        response = requests.post(endpoint, headers=headers, json=payload)
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
 
         if response.status_code == 200:
             result = response.json()
@@ -630,7 +690,18 @@ def create_parser():
     parser.add_argument(
         "--fetch-results",
         action="store_true",
-        help="Poll for completion and fetch results (requires --generate-after-upload)",
+        help=(
+            "Fetch results and save CSV. With --generate-after-upload, polls "
+            "the generation task and fetches its subset export. Without "
+            "--filepath, fetches the entire project's existing results."
+        ),
+    )
+    parser.add_argument(
+        "--export-type",
+        type=str,
+        choices=["detailed", "patient"],
+        default="patient",
+        help="Export type for --fetch-results (default: patient)",
     )
     parser.add_argument(
         "--output-file",
@@ -660,6 +731,12 @@ def create_parser():
         "--can-upload-permission",
         action="store_true",
         help="Grant upload permission to the users",
+        default=False,
+    )
+    parser.add_argument(
+        "--no-verify-ssl",
+        action="store_true",
+        help="Disable SSL certificate verification (use for self-signed certs)",
         default=False,
     )
 
@@ -709,10 +786,6 @@ def main():
         print("Error: --generate-after-upload requires --filepath")
         sys.exit(1)
 
-    if args.fetch_results and not args.generate_after_upload:
-        print("Error: --fetch-results requires --generate-after-upload")
-        sys.exit(1)
-
     if args.fetch_results and not args.output_file:
         print("Error: --fetch-results requires --output-file")
         sys.exit(1)
@@ -720,6 +793,10 @@ def main():
     if args.structured_data and args.generate_after_upload:
         print("Error: --structured-data cannot be used with --generate-after-upload")
         sys.exit(1)
+
+    verify_ssl = not args.no_verify_ssl
+    if not verify_ssl:
+        print("Warning: SSL certificate verification is disabled")
 
     # Normalize filepath if provided
     filepath = None
@@ -733,6 +810,7 @@ def main():
             args.create_project,
             args.api_token,
             args.url,
+            verify_ssl=verify_ssl,
         )
         if project_id is None:
             sys.exit(1)
@@ -750,7 +828,12 @@ def main():
         print(f"Inviting {len(email_addresses)} users to project {project_id}")
         for email in email_addresses:
             if not invite_user(
-                email, project_id, args.api_token, args.url, args.can_upload_permission
+                email,
+                project_id,
+                args.api_token,
+                args.url,
+                args.can_upload_permission,
+                verify_ssl=verify_ssl,
             ):
                 failed_invites.append(email)
         if failed_invites:
@@ -765,6 +848,7 @@ def main():
                 project_id,
                 args.api_token,
                 args.url,
+                verify_ssl=verify_ssl,
             )
         else:
             # Default to notes upload (--notes flag or no flag)
@@ -774,49 +858,53 @@ def main():
                 args.api_token,
                 args.url,
                 args.generate_after_upload,
+                verify_ssl=verify_ssl,
             )
 
         if not result:
             sys.exit(1)
 
     # Handle fetch-results flow
-    if args.fetch_results and result:
-        generation_task_id = result.get("generation_task_id")
-        if not generation_task_id:
-            print("Error: No generation task ID returned")
-            sys.exit(1)
+    if args.fetch_results:
+        # If we just kicked off generation, wait for it and fetch its subset;
+        # otherwise fall through to a project-wide fetch (task_id stays None).
+        generation_task_id = result.get("generation_task_id") if result else None
 
-        # Poll until generation complete
-        status = poll_task_status(
-            generation_task_id,
-            project_id,
-            args.api_token,
-            args.url,
-            initial_interval=args.poll_interval,
-            max_interval=args.max_poll_interval,
-        )
-
-        if status == TaskStatus.COMPLETE:
-            print("Generation complete!")
-            success = fetch_results(
+        if generation_task_id:
+            status = poll_task_status(
                 generation_task_id,
                 project_id,
                 args.api_token,
                 args.url,
-                args.output_file,
                 initial_interval=args.poll_interval,
                 max_interval=args.max_poll_interval,
+                verify_ssl=verify_ssl,
             )
-            if not success:
+            status_messages = {
+                TaskStatus.ERROR: "Generation ended with ERROR status",
+                TaskStatus.STOPPED: "Generation was STOPPED",
+            }
+            if status != TaskStatus.COMPLETE:
+                print(
+                    status_messages.get(
+                        status, f"Generation ended with unexpected status: {status}"
+                    )
+                )
                 sys.exit(1)
-        elif status == TaskStatus.ERROR:
-            print("Generation ended with ERROR status")
-            sys.exit(1)
-        elif status == TaskStatus.STOPPED:
-            print("Generation was STOPPED")
-            sys.exit(1)
-        else:
-            print(f"Generation ended with unexpected status: {status}")
+            print("Generation complete!")
+
+        success = fetch_results(
+            generation_task_id,
+            project_id,
+            args.api_token,
+            args.url,
+            args.output_file,
+            initial_interval=args.poll_interval,
+            max_interval=args.max_poll_interval,
+            export_type=args.export_type,
+            verify_ssl=verify_ssl,
+        )
+        if not success:
             sys.exit(1)
 
     sys.exit(0)

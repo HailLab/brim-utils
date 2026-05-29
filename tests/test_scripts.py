@@ -126,35 +126,34 @@ class TestArgumentParsing(unittest.TestCase):
 class TestValidationErrors(unittest.TestCase):
     """Test validation of argument combinations."""
 
-    def test_fetch_results_without_generate_fails(self):
-        """--fetch-results without --generate-after-upload should fail."""
+    @mock.patch("brim_utils.fetch_results")
+    def test_fetch_results_without_generate_does_project_fetch(self, mock_fetch):
+        """--fetch-results without --generate-after-upload fetches project-wide."""
+        mock_fetch.return_value = True
+
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
-            f.write(b"test,data\n")
-            filepath = f.name
-        self.addCleanup(os.unlink, filepath)
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
 
         with mock.patch(
             "sys.argv",
             [
                 "brim_utils.py",
-                "--filepath",
-                filepath,
                 "--project-id",
                 "123",
                 "--api-token",
                 "test-token",
                 "--fetch-results",
+                "--output-file",
+                output_path,
             ],
         ):
-            captured_output = StringIO()
-            with mock.patch("sys.stdout", captured_output):
-                with self.assertRaises(SystemExit) as cm:
-                    main()
-                self.assertEqual(cm.exception.code, 1)
-            self.assertIn(
-                "--fetch-results requires --generate-after-upload",
-                captured_output.getvalue(),
-            )
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            self.assertEqual(cm.exception.code, 0)
+        # No filepath/generation, so task_id passed to fetch_results is None
+        mock_fetch.assert_called_once()
+        self.assertIsNone(mock_fetch.call_args[0][0])
 
     def test_structured_data_with_generate_fails(self):
         """--structured-data with --generate-after-upload should fail."""
@@ -1741,6 +1740,353 @@ class TestConvertOmopToBrimStringIds(unittest.TestCase):
         finally:
             if output_path.exists():
                 os.unlink(output_path)
+
+
+class TestExportType(unittest.TestCase):
+    """Test --export-type argument and its effect on fetch_results payload."""
+
+    def test_export_type_defaults_to_patient(self):
+        """--export-type should default to 'patient'."""
+        with mock.patch(
+            "sys.argv",
+            ["brim_utils.py", "--project-id", "123", "--api-token", "t"],
+        ):
+            args = create_parser().parse_args()
+            self.assertEqual(args.export_type, "patient")
+
+    def test_export_type_accepts_detailed(self):
+        """--export-type detailed should be accepted."""
+        with mock.patch(
+            "sys.argv",
+            [
+                "brim_utils.py",
+                "--project-id",
+                "123",
+                "--api-token",
+                "t",
+                "--export-type",
+                "detailed",
+            ],
+        ):
+            args = create_parser().parse_args()
+            self.assertEqual(args.export_type, "detailed")
+
+    def test_export_type_rejects_invalid(self):
+        """--export-type with an invalid choice should fail."""
+        with mock.patch(
+            "sys.argv",
+            [
+                "brim_utils.py",
+                "--project-id",
+                "123",
+                "--api-token",
+                "t",
+                "--export-type",
+                "bogus",
+            ],
+        ):
+            with self.assertRaises(SystemExit):
+                create_parser().parse_args()
+
+    @mock.patch("brim_utils.requests.post")
+    def test_fetch_results_patient_export_payload(self, mock_post):
+        """Default patient export sends patient_export=True, detailed_export=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "text/csv"}
+        mock_response.text = "Name,Value\nvar1,result1\n"
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
+
+        fetch_results(
+            task_id="task-123",
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            output_file=output_path,
+        )
+
+        payload = mock_post.call_args[1]["json"]
+        self.assertTrue(payload["patient_export"])
+        self.assertFalse(payload["detailed_export"])
+
+    @mock.patch("brim_utils.requests.post")
+    def test_fetch_results_detailed_export_payload(self, mock_post):
+        """detailed export sends detailed_export=True, patient_export=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "text/csv"}
+        mock_response.text = "Name,Value\nvar1,result1\n"
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
+
+        fetch_results(
+            task_id="task-123",
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            output_file=output_path,
+            export_type="detailed",
+        )
+
+        payload = mock_post.call_args[1]["json"]
+        self.assertTrue(payload["detailed_export"])
+        self.assertFalse(payload["patient_export"])
+
+
+class TestProjectWideFetch(unittest.TestCase):
+    """Test fetching project-wide results (task_id=None)."""
+
+    @mock.patch("brim_utils.requests.post")
+    def test_fetch_results_omits_task_id_when_none(self, mock_post):
+        """A project-wide fetch (task_id=None) should not send task_id."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "text/csv"}
+        mock_response.text = "Name,Value\nvar1,result1\n"
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
+
+        success = fetch_results(
+            task_id=None,
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            output_file=output_path,
+        )
+
+        self.assertTrue(success)
+        payload = mock_post.call_args[1]["json"]
+        self.assertNotIn("task_id", payload)
+        self.assertEqual(payload["project_id"], 123)
+
+    @mock.patch("brim_utils.fetch_results")
+    def test_main_project_wide_fetch_passes_none_task_id(self, mock_fetch):
+        """--fetch-results with no upload triggers a project-wide fetch."""
+        mock_fetch.return_value = True
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
+
+        with mock.patch(
+            "sys.argv",
+            [
+                "brim_utils.py",
+                "--project-id",
+                "123",
+                "--api-token",
+                "test-token",
+                "--fetch-results",
+                "--output-file",
+                output_path,
+                "--export-type",
+                "detailed",
+            ],
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            self.assertEqual(cm.exception.code, 0)
+
+        mock_fetch.assert_called_once()
+        # task_id (first positional) is None, export_type forwarded
+        self.assertIsNone(mock_fetch.call_args[0][0])
+        self.assertEqual(mock_fetch.call_args[1]["export_type"], "detailed")
+
+
+class TestSSLVerification(unittest.TestCase):
+    """Test the --no-verify-ssl flag and verify_ssl plumbing."""
+
+    def test_no_verify_ssl_flag_defaults_false(self):
+        """--no-verify-ssl should default to False (verification on)."""
+        with mock.patch(
+            "sys.argv",
+            ["brim_utils.py", "--project-id", "123", "--api-token", "t"],
+        ):
+            args = create_parser().parse_args()
+            self.assertFalse(args.no_verify_ssl)
+
+    def test_no_verify_ssl_flag_set(self):
+        """--no-verify-ssl should be recognized."""
+        with mock.patch(
+            "sys.argv",
+            [
+                "brim_utils.py",
+                "--project-id",
+                "123",
+                "--api-token",
+                "t",
+                "--no-verify-ssl",
+            ],
+        ):
+            args = create_parser().parse_args()
+            self.assertTrue(args.no_verify_ssl)
+
+    @mock.patch("brim_utils.requests.post")
+    def test_upload_csv_verify_true_by_default(self, mock_post):
+        """upload_csv should verify SSL by default."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "upload_task_id": "task-123",
+                "original_filename": "test.csv",
+                "generation_task_id": None,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            f.write(b"note_id,person_id,note_text\n1,P1,Test note\n")
+            filepath = f.name
+        self.addCleanup(os.unlink, filepath)
+
+        upload_csv(
+            filepath,
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            generate_after_upload=False,
+        )
+
+        self.assertTrue(mock_post.call_args[1]["verify"])
+
+    @mock.patch("brim_utils.requests.post")
+    def test_upload_csv_verify_false_when_disabled(self, mock_post):
+        """upload_csv should pass verify=False when verify_ssl=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {
+                "upload_task_id": "task-123",
+                "original_filename": "test.csv",
+                "generation_task_id": None,
+            },
+        }
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            f.write(b"note_id,person_id,note_text\n1,P1,Test note\n")
+            filepath = f.name
+        self.addCleanup(os.unlink, filepath)
+
+        upload_csv(
+            filepath,
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            generate_after_upload=False,
+            verify_ssl=False,
+        )
+
+        self.assertFalse(mock_post.call_args[1]["verify"])
+
+    @mock.patch("brim_utils.requests.post")
+    def test_create_project_verify_false_when_disabled(self, mock_post):
+        """create_project should pass verify=False when verify_ssl=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {
+            "status": "success",
+            "data": {"id": 456, "name": "P", "created": True},
+        }
+        mock_post.return_value = mock_response
+
+        create_project(
+            project_name="P",
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            verify_ssl=False,
+        )
+
+        self.assertFalse(mock_post.call_args[1]["verify"])
+
+    @mock.patch("brim_utils.requests.post")
+    def test_invite_user_verify_false_when_disabled(self, mock_post):
+        """invite_user should pass verify=False when verify_ssl=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"success": True, "message": "ok"}
+        mock_post.return_value = mock_response
+
+        invite_user(
+            email="test@example.com",
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            verify_ssl=False,
+        )
+
+        self.assertFalse(mock_post.call_args[1]["verify"])
+
+    @mock.patch("brim_utils.requests.post")
+    def test_fetch_results_verify_false_when_disabled(self, mock_post):
+        """fetch_results should pass verify=False when verify_ssl=False."""
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {"Content-Type": "text/csv"}
+        mock_response.text = "Name,Value\nvar1,result1\n"
+        mock_post.return_value = mock_response
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            output_path = f.name
+        self.addCleanup(os.unlink, output_path)
+
+        fetch_results(
+            task_id="task-123",
+            project_id=123,
+            api_token="test-token",
+            api_url="http://localhost:8000",
+            output_file=output_path,
+            verify_ssl=False,
+        )
+
+        self.assertFalse(mock_post.call_args[1]["verify"])
+
+    @mock.patch("brim_utils.upload_csv")
+    def test_main_warns_and_disables_verify(self, mock_upload):
+        """main with --no-verify-ssl warns and forwards verify_ssl=False."""
+        mock_upload.return_value = {"upload_task_id": "task-123"}
+
+        with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as f:
+            f.write(b"test,data\n")
+            filepath = f.name
+        self.addCleanup(os.unlink, filepath)
+
+        with mock.patch(
+            "sys.argv",
+            [
+                "brim_utils.py",
+                "--filepath",
+                filepath,
+                "--project-id",
+                "123",
+                "--api-token",
+                "test-token",
+                "--no-verify-ssl",
+            ],
+        ):
+            captured_output = StringIO()
+            with mock.patch("sys.stdout", captured_output):
+                with self.assertRaises(SystemExit) as cm:
+                    main()
+                self.assertEqual(cm.exception.code, 0)
+            self.assertIn(
+                "SSL certificate verification is disabled",
+                captured_output.getvalue(),
+            )
+        self.assertFalse(mock_upload.call_args[1]["verify_ssl"])
 
 
 if __name__ == "__main__":
