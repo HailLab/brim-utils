@@ -677,7 +677,7 @@ class TestCreateProjectValidation(unittest.TestCase):
             self.assertEqual(mock_invite.call_count, 2)
 
     def test_generate_after_upload_requires_csv_file(self):
-        """--generate-after-upload without --filepath should fail."""
+        """--generate-after-upload without a notes file should fail."""
         with mock.patch(
             "sys.argv",
             [
@@ -695,7 +695,7 @@ class TestCreateProjectValidation(unittest.TestCase):
                     main()
                 self.assertEqual(cm.exception.code, 1)
             self.assertIn(
-                "--generate-after-upload requires --filepath",
+                "--generate-after-upload requires a notes file",
                 captured_output.getvalue(),
             )
 
