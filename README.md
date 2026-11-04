@@ -109,8 +109,8 @@ python brim_utils.py --filepath notes.csv \
 
 | Argument | Description |
 |----------|-------------|
-| `--filepath PATH` | Path to the CSV file to upload (optional) |
-| `--api-token` | API token for Bearer authentication (required, or set `API_TOKEN` env var) |
+| `--filepath PATH` | Path to the notes or structured-data CSV/TSV file to upload (optional) |
+| `--api-token` | API token for Bearer authentication (required, or set `BRIM_API_TOKEN` or `API_TOKEN` env var) |
 | `--url` | Base URL of the API (default: `http://localhost:8000`, or set `API_URL` env var) |
 | `--project-id` | Project ID to use (or set `PROJECT_ID` env var) |
 | `--create-project NAME` | Create a new project with the given name |
@@ -119,17 +119,49 @@ python brim_utils.py --filepath notes.csv \
 | `--can-upload-permission` | Grant upload permission to invited users |
 | `--notes` | Upload as notes CSV (default when `--filepath` is provided) |
 | `--structured-data` | Upload as structured data CSV |
-| `--generate-after-upload` | Start LLM generation after upload completes (requires `--filepath`) |
-| `--fetch-results` | Poll for completion and fetch results (requires `--generate-after-upload` and `--output-file`) |
-| `--output-file PATH` | Path to save results CSV |
+| `--notes-file PATH` | Dedicated notes CSV/TSV upload option |
+| `--structured-data-file PATH` | Upload structured data alongside notes, before notes are processed |
+| `--variable-file PATH` | Import variable definitions before data uploads |
+| `--decision-file PATH` | Import dependent-variable definitions; alias: `--dependent-variable-file` |
+| `--overwrite-instruments` | Clear and re-derive instruments during variable import |
+| `--validation-file PATH` | Upload validation labels after notes; cannot combine with generation |
+| `--validation-target TARGET` | `training` or `holdout` (default: `holdout`) |
+| `--validation-only-reviewed` | Import only accept/edit validation rows |
+| `--wait-for-ready` | Wait for the server health endpoint before API calls |
+| `--ready-timeout SECONDS` | Server readiness timeout (default: 600) |
+| `--list-patients-by-last-document-load DAYS` | List patients whose latest document load is at least DAYS old, including patients without documents |
+| `--patient-limit COUNT` | Maximum patients returned (default: 1000; no automatic pagination) |
+| `--reference-date ISO` | Reference date/time for the patient age cutoff; naive values use UTC |
+| `--delete-patients MRN ...` | Queue permanent deletion of explicit patient MRNs and their project data |
+| `--export-type TYPE` | Results format: `patient` (default) or `detailed` |
+| `--generate-after-upload` | Start LLM generation after notes upload (requires `--filepath` or `--notes-file`) |
+| `--fetch-results` | Fetch results, optionally after generation (requires `--output-file`) |
+| `--output-file PATH` | Path to save results CSV or patient-operation JSON |
 | `--poll-interval` | Initial polling interval in seconds (default: 2) |
 | `--max-poll-interval` | Maximum polling interval in seconds (default: 300) |
 | `--no-verify-ssl` | Disable SSL certificate verification |
 
 **Environment Variables:**
-- `API_TOKEN` - Default value for `--api-token`
+- `BRIM_API_TOKEN` - Default value for `--api-token` (takes precedence)
+- `API_TOKEN` - Legacy fallback for `--api-token`
 - `API_URL` - Default value for `--url`
 - `PROJECT_ID` - Default value for `--project-id`
+
+**Combined import workflow:**
+```bash
+python brim_utils.py --create-project "My Project" \
+    --variable-file variables.csv --decision-file dvs.csv \
+    --structured-data-file structured.csv --notes-file notes.csv \
+    --generate-after-upload --fetch-results --output-file results.csv
+```
+
+Definitions and structured data are imported and awaited before notes and generation.
+
+**Patient operations:** Require `--project-id` and run separately from uploads,
+invitations, generation, and result fetching. Listing uses document load time,
+not clinical note date. Deletion returns an asynchronous task handle, not completion;
+that handle cannot be polled through `/api/v1/task_status/`. Project deletion and
+clearing all project data/results are not CLI operations.
 
 **Exit Codes:**
 - `0` - Success
