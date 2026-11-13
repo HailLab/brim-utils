@@ -7,6 +7,8 @@ from unittest import mock
 
 import pandas as pd
 
+import brim_utils as brim_utils_mod
+
 from convert_omop_to_brim import (
     _normalize_id,
     build_enrichment_header,
@@ -231,7 +233,6 @@ class TestUploadCSV(unittest.TestCase):
             "data": {
                 "upload_task_id": "task-123",
                 "original_filename": "test.csv",
-                "generation_task_id": None,
             },
         }
         mock_post.return_value = mock_response
@@ -268,7 +269,6 @@ class TestUploadCSV(unittest.TestCase):
             "data": {
                 "upload_task_id": "task-123",
                 "original_filename": "test.csv",
-                "generation_task_id": "task-123",
             },
         }
         mock_post.return_value = mock_response
@@ -287,7 +287,7 @@ class TestUploadCSV(unittest.TestCase):
         )
 
         self.assertIsNotNone(result)
-        self.assertEqual(result["generation_task_id"], "task-123")
+        self.assertEqual(result["upload_task_id"], "task-123")
         self.assertTrue(mock_post.call_args[1]["data"]["generate_after_upload"])
 
     @mock.patch("brim_utils.requests.post")
@@ -2088,6 +2088,86 @@ class TestSSLVerification(unittest.TestCase):
             )
         self.assertFalse(mock_upload.call_args[1]["verify_ssl"])
 
+
+class TestMainGenerateAfterUpload(unittest.TestCase):
+    """``main()`` follows the upload task to its generation, then fetches the
+    upload's subset of results."""
+
+    _ARGV = [
+        "--filepath",
+        __file__,
+        "--project-id",
+        "42",
+        "--api-token",
+        "tok",
+        "--generate-after-upload",
+        "--fetch-results",
+        "--output-file",
+        "/tmp/x.csv",
+    ]
+
+    def _run_generate(self, poll_statuses, upload_status_data):
+        upload_result = {"original_filename": "notes.csv", "upload_task_id": "u-1"}
+        with mock.patch.object(
+            brim_utils_mod, "upload_csv", return_value=upload_result
+        ), mock.patch.object(
+            brim_utils_mod, "poll_task_status", side_effect=poll_statuses
+        ) as mock_poll, mock.patch.object(
+            brim_utils_mod, "get_task_status_data", return_value=upload_status_data
+        ), mock.patch.object(
+            brim_utils_mod, "fetch_results", return_value=True
+        ) as mock_fetch, mock.patch.object(
+            brim_utils_mod, "print"
+        ) as mock_print, mock.patch(
+            "sys.argv", ["brim_utils.py", *self._ARGV]
+        ):
+            with self.assertRaises(SystemExit) as cm:
+                brim_utils_mod.main()
+        printed = " ".join(
+            " ".join(str(a) for a in call.args) for call in mock_print.call_args_list
+        )
+        return cm.exception.code, mock_poll, mock_fetch, printed
+
+    def test_generate_waits_for_generation_then_fetches_upload_subset(self):
+        complete = brim_utils_mod.TaskStatus.COMPLETE
+        code, mock_poll, mock_fetch, printed = self._run_generate(
+            [complete, complete],
+            {"task_status_display": "Complete", "generation_task_id": "g-1"},
+        )
+
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            [call.args[0] for call in mock_poll.call_args_list], ["u-1", "g-1"]
+        )
+        mock_fetch.assert_called_once()
+        self.assertEqual(mock_fetch.call_args.args[0], "u-1")
+        self.assertIn("Generation complete!", printed)
+
+    def test_generation_error_exits_with_status_message(self):
+        code, _, mock_fetch, printed = self._run_generate(
+            [brim_utils_mod.TaskStatus.COMPLETE, brim_utils_mod.TaskStatus.ERROR],
+            {"task_status_display": "Complete", "generation_task_id": "g-1"},
+        )
+
+        self.assertEqual(code, 1)
+        mock_fetch.assert_not_called()
+        self.assertIn("ERROR", printed)
+
+    def test_generation_not_started_exits_with_upload_error(self):
+        code, mock_poll, mock_fetch, printed = self._run_generate(
+            [brim_utils_mod.TaskStatus.ERROR],
+            {
+                "task_status_display": "Error",
+                "generation_task_id": None,
+                "error_text": "No variables ready to generate",
+            },
+        )
+
+        self.assertEqual(code, 1)
+        mock_poll.assert_called_once()
+        mock_fetch.assert_not_called()
+        self.assertIn("Generation did not start", printed)
+        self.assertIn("No variables ready to generate", printed)
 
 if __name__ == "__main__":
     unittest.main()
