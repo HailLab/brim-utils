@@ -2169,5 +2169,6 @@ class TestMainGenerateAfterUpload(unittest.TestCase):
         self.assertIn("Generation did not start", printed)
         self.assertIn("No variables ready to generate", printed)
 
+
 if __name__ == "__main__":
     unittest.main()
