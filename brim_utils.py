@@ -214,8 +214,6 @@ def upload_csv(
             result = response.json()
             print(f"Success! Upload successful: {result['data']['original_filename']}")
             print(f"Upload Task ID: {result['data']['upload_task_id']}")
-            if result["data"].get("generation_task_id"):
-                print(f"Generation Task ID: {result['data']['generation_task_id']}")
             return result["data"]
         else:
             print(f"Error: Upload failed with status code {response.status_code}")
@@ -339,6 +337,39 @@ def create_project(project_name, api_token, api_url, verify_ssl=True):
         return None, False
 
 
+def get_task_status_data(task_id, project_id, api_token, api_url, verify_ssl=True):
+    """
+    Call the task status endpoint once.
+
+    Returns:
+        dict: The response's data (task_status, task_status_display,
+        generation_task_id, ...), or None on error
+    """
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    endpoint = f"{api_url.rstrip('/')}/api/v1/task_status/"
+    payload = {
+        "project_id": project_id,
+        "task_id": task_id,
+    }
+
+    try:
+        response = requests.post(
+            endpoint, headers=headers, json=payload, verify=verify_ssl
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"Error connecting to server: {e}")
+        return None
+
+    if response.status_code != 200:
+        print(f"Error checking task status: {response.status_code} - {response.text}")
+        return None
+    return response.json()["data"]
+
+
 def poll_task_status(
     task_id,
     project_id,
@@ -365,53 +396,30 @@ def poll_task_status(
     Returns:
         int: Final task status (COMPLETE=2, ERROR=3, STOPPED=4) or None on error
     """
-    headers = {
-        "Authorization": f"Bearer {api_token}",
-        "Content-Type": "application/json",
-    }
-
-    endpoint = f"{api_url.rstrip('/')}/api/v1/task_status/"
-    payload = {
-        "project_id": project_id,
-        "task_id": task_id,
-    }
-
     interval = initial_interval
     retries = 0
 
     print(f"Polling task status for task {task_id}...")
 
     while True:
-        try:
-            response = requests.post(
-                endpoint, headers=headers, json=payload, verify=verify_ssl
-            )
-
-            if response.status_code == 200:
-                result = response.json()
-                status = result["data"]["task_status"]
-                status_display = result["data"]["task_status_display"]
-
-                print(f"  Status: {status_display} ({status})")
-
-                # Check for terminal states
-                if status in [
-                    TaskStatus.COMPLETE,
-                    TaskStatus.ERROR,
-                    TaskStatus.STOPPED,
-                ]:
-                    return status
-
-            else:
-                print(
-                    f"Error checking task status: {response.status_code} - "
-                    f"{response.text}"
-                )
-                return None
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error connecting to server: {e}")
+        task_data = get_task_status_data(
+            task_id, project_id, api_token, api_url, verify_ssl=verify_ssl
+        )
+        if task_data is None:
             return None
+
+        status = task_data["task_status"]
+        status_display = task_data["task_status_display"]
+
+        print(f"  Status: {status_display} ({status})")
+
+        # Check for terminal states
+        if status in [
+            TaskStatus.COMPLETE,
+            TaskStatus.ERROR,
+            TaskStatus.STOPPED,
+        ]:
+            return status
 
         # Check retry limit
         retries += 1
@@ -866,11 +874,44 @@ def main():
 
     # Handle fetch-results flow
     if args.fetch_results:
-        # If we just kicked off generation, wait for it and fetch its subset;
-        # otherwise fall through to a project-wide fetch (task_id stays None).
-        generation_task_id = result.get("generation_task_id") if result else None
+        # If we just kicked off generation, wait for it and fetch the upload's
+        # subset; otherwise fall through to a project-wide fetch (task_id stays
+        # None).
+        upload_task_id = None
 
-        if generation_task_id:
+        if args.generate_after_upload:
+            upload_task_id = result["upload_task_id"]
+            # The upload creates the generation as its last step, and reports
+            # its ID through task status once that step has run.
+            status = poll_task_status(
+                upload_task_id,
+                project_id,
+                args.api_token,
+                args.url,
+                initial_interval=args.poll_interval,
+                max_interval=args.max_poll_interval,
+                verify_ssl=verify_ssl,
+            )
+            task_data = (
+                get_task_status_data(
+                    upload_task_id,
+                    project_id,
+                    args.api_token,
+                    args.url,
+                    verify_ssl=verify_ssl,
+                )
+                or {}
+            )
+            generation_task_id = task_data.get("generation_task_id")
+            if status != TaskStatus.COMPLETE or not generation_task_id:
+                print(
+                    "Error: Generation did not start. Upload status: "
+                    f"{task_data.get('task_status_display', status)}"
+                )
+                if task_data.get("error_text"):
+                    print(task_data["error_text"])
+                sys.exit(1)
+
             status = poll_task_status(
                 generation_task_id,
                 project_id,
@@ -894,7 +935,7 @@ def main():
             print("Generation complete!")
 
         success = fetch_results(
-            generation_task_id,
+            upload_task_id,
             project_id,
             args.api_token,
             args.url,
